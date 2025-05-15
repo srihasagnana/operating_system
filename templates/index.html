@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OS Web Shell</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #f4f4f4;
+      color: #222;
+      padding: 20px;
+    }
+    select, input, button {
+      font-family: monospace;
+      margin: 5px 0;
+      padding: 7px;
+    }
+    .os-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .os-tab {
+      padding: 10px 20px;
+      background: #ccc;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    .os-tab.active {
+      background: #007BFF;
+      color: white;
+    }
+    #commands {
+      display: none;
+      margin-top: 10px;
+    }
+    #commands div {
+      background: #eee;
+      margin: 3px 0;
+      padding: 5px 8px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #commands div:hover {
+      background-color: #cbd3da;
+    }
+    #output {
+      background: #e9ecef;
+      padding: 15px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h2>OS Web Shell</h2>
+
+  <div class="os-tabs">
+    <div class="os-tab active" onclick="selectOS('Windows', event)">Windows</div>
+    <div class="os-tab" onclick="selectOS('Linux', event)">Linux</div>
+  </div>
+
+  <button onclick="toggleCommands()" id="toggleButton">Show Commands</button>
+
+  <div id="commands-container">
+    <strong id="cmdHeader" style="display:none;">Available commands:</strong>
+    <div id="commands"></div>
+  </div>
+
+  <input type="text" id="command" placeholder="Enter command" size="50">
+  <button onclick="sendCommand()">Run</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    let currentOS = 'Windows';
+    let osCommandMap = {};
+    let isCommandsVisible = false;
+
+    async function fetchCommands() {
+      const res = await fetch('/commands');
+      osCommandMap = await res.json();
+      updateCommandList();
+    }
+
+    function selectOS(osName, event) {
+      currentOS = osName;
+      document.querySelectorAll('.os-tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+      updateCommandList();
+    }
+
+    function toggleCommands() {
+      isCommandsVisible = !isCommandsVisible;
+      document.getElementById('commands').style.display = isCommandsVisible ? 'block' : 'none';
+      document.getElementById('cmdHeader').style.display = isCommandsVisible ? 'block' : 'none';
+      document.getElementById('toggleButton').textContent = isCommandsVisible ? 'Hide Commands' : 'Show Commands';
+    }
+
+    function updateCommandList() {
+      const cmdDiv = document.getElementById('commands');
+      cmdDiv.innerHTML = '';
+      if (osCommandMap[currentOS]) {
+        osCommandMap[currentOS].forEach(cmd => {
+          const cmdEl = document.createElement('div');
+          cmdEl.textContent = cmd;
+          cmdEl.onclick = () => document.getElementById('command').value = cmd;
+          cmdDiv.appendChild(cmdEl);
+        });
+      }
+    }
+
+    async function sendCommand() {
+      const cmd = document.getElementById('command').value.trim();
+      if (!cmd) return alert('Please enter a command.');
+      const res = await fetch('/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd, os: currentOS })
+      });
+      const data = await res.json();
+      let output = '';
+      if (data.stdout) output += data.stdout;
+      if (data.stderr) output += '\n' + data.stderr;
+      document.getElementById('output').textContent = output;
+    }
+
+    fetchCommands();
+
+    document.getElementById('command').addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendCommand();
+    });
+  </script>
+</body>
+</html>
